@@ -363,7 +363,7 @@ class OGN_XYPromptSRAxis:
     CATEGORY = "OGN/XY Plot"
 
     def build_axis(self, search, replace_1, **kwargs):
-        replacements = [replace_1] + _sorted_kwargs(kwargs, "replace_")
+        replacements = ([search] if search else []) + [replace_1] + _sorted_kwargs(kwargs, "replace_")
         replacements = [value for value in replacements if value is not None]
         return (
             {
@@ -499,8 +499,19 @@ class OGN_XYPlot:
             for x_index, x_value in enumerate(x_values):
                 state = copy.copy(base)
                 state.seed = self._cell_seed(seed, seed_mode, x_index, y_index, len(x_values))
-                self._apply_axis(state, x_type, x_value, x_values, diffusion_weight_dtype)
-                self._apply_axis(state, y_type, y_value, y_values, diffusion_weight_dtype)
+                axes = (
+                    (x_type, x_value, x_values),
+                    (y_type, y_value, y_values),
+                )
+
+                # Load model sources before applying LoRAs and other modifiers so
+                # the result does not depend on whether an axis is X or Y.
+                for axis_type, value, axis_values in axes:
+                    if axis_type in {"Checkpoint", "Diffusion Model"}:
+                        self._apply_axis(state, axis_type, value, axis_values, diffusion_weight_dtype)
+                for axis_type, value, axis_values in axes:
+                    if axis_type not in {"Checkpoint", "Diffusion Model"}:
+                        self._apply_axis(state, axis_type, value, axis_values, diffusion_weight_dtype)
 
                 positive = self._encode_text(state.clip, state.positive_prompt)
                 negative = self._encode_text(state.clip, state.negative_prompt)
